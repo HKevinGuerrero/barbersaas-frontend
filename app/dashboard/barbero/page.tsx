@@ -40,13 +40,16 @@ const fetchMyDay = useCallback(async () => {
       const miNombre = localStorage.getItem("user_name");
       if (miNombre) setBarberName(miNombre);
 
-      // 1. Llamamos a nuestra ruta segura. ¡El Backend ya sabe quién eres por el Token!
-      const res = await api.get('/Citas/mis-citas');
+      // 1. Llamamos a nuestra ruta pidiendo un límite alto para que traiga todo el día
+      const res = await api.get('/Citas/mis-citas?limite=80');
       
       const hoyStr = getTodayLocalString();
 
-      // 2. Solo filtramos por la fecha de hoy. El backend ya hizo el filtro del barbero por nosotros.
-      const misCitasHoy = res.data
+      // 🚀 CORRECCIÓN: Extraemos el arreglo de forma segura
+      const arregloCitas = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+
+      // 2. Filtramos por la fecha de hoy
+      const misCitasHoy = arregloCitas
         .filter((c: any) => c.fechaCita.startsWith(hoyStr))
         .sort((a: any, b: any) => a.horaCita.localeCompare(b.horaCita));
 
@@ -98,7 +101,6 @@ const fetchMyDay = useCallback(async () => {
   const cortesHoy = appointments.length;
   const completados = appointments.filter(a => a.estado === "Completada").length;
   
-  // SOLUCIÓN 1: Ahora SOLO suma las citas con estado "Completada"
   const gananciaHoy = appointments
     .filter(a => a.estado === "Completada") 
     .reduce((sum, apt) => sum + apt.totalPrecio, 0);
@@ -165,7 +167,6 @@ const fetchMyDay = useCallback(async () => {
                       <tr key={apt.id} className={`table-row-anim opacity-0 transition-all ${apt.estado === 'Completada' || apt.estado === 'Cancelada' ? 'bg-zinc-900/30 opacity-60' : 'hover:bg-white/[0.02]'}`}>
                         <td className="px-6 py-5">
                           <span className="bg-zinc-800 text-stone-300 px-3 py-1.5 rounded-full text-xs font-bold border border-white/5">
-                            {/* 👇 APLICAMOS LA MAGIA AQUÍ. Borré el substring */}
                             {formatHoraAmPm(apt.horaCita)}
                           </span>
                         </td>

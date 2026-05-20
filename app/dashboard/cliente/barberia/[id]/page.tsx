@@ -40,7 +40,7 @@ export default function BarberiaProfilePage() {
   // ── Estados del modal de agendamiento ───────────────────────────────────────
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedBarbero, setSelectedBarbero] = useState<any>(null);
-  const [selectedServices, setSelectedServices] = useState<any[]>([]); // 👈 Arreglo para múltiples servicios
+  const [selectedServices, setSelectedServices] = useState<any[]>([]); 
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
 
@@ -53,9 +53,9 @@ export default function BarberiaProfilePage() {
     setSelectedServices((prev) => {
       const yaEstaSeleccionado = prev.some((s) => s.id === servicio.id);
       if (yaEstaSeleccionado) {
-        return prev.filter((s) => s.id !== servicio.id); // Lo quita
+        return prev.filter((s) => s.id !== servicio.id); 
       } else {
-        return [...prev, servicio]; // Lo agrega
+        return [...prev, servicio]; 
       }
     });
   };
@@ -91,14 +91,18 @@ export default function BarberiaProfilePage() {
         }
       } catch (error) {
         console.error("Error al cargar la barbería:", error);
-        toast.error("No se pudo cargar la información de esta barbería.");
+        toast.error("Esta barbería no está disponible o aún no ha sido aprobada.");
+        // 🛡️ Redirección automática si intentan colarse por URL directa
+        setTimeout(() => {
+          router.push("/dashboard/cliente");
+        }, 2000);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchBarberiaData();
-  }, [sucursalId]);
+  }, [sucursalId, router]);
 
   // ── 2. Consulta dinámica de horas libres ────────────────────────────────────
   useEffect(() => {
@@ -114,7 +118,6 @@ export default function BarberiaProfilePage() {
             sucursalId: sucursal.id,
             barberoId: selectedBarbero.barberoId,
             fecha: selectedDate,
-            // Enviamos los IDs unidos por coma al backend
             serviciosIds: selectedServices.map((s) => s.id).join(","),
           },
         });
@@ -128,7 +131,7 @@ export default function BarberiaProfilePage() {
     };
 
     fetchHoras();
-  }, [selectedDate, selectedServices, selectedBarbero, sucursal]); // 👈 Dependencia actualizada
+  }, [selectedDate, selectedServices, selectedBarbero, sucursal]); 
 
   // ── Animaciones GSAP ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -169,7 +172,7 @@ export default function BarberiaProfilePage() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setTimeout(() => {
-      setSelectedServices([]); // 👈 Limpiamos el arreglo
+      setSelectedServices([]); 
       setSelectedDate("");
       setSelectedTime("");
       setHorariosDisponibles([]);
@@ -184,7 +187,7 @@ export default function BarberiaProfilePage() {
     return `${hours.padStart(2, "0")}:${minutes}:00`;
   };
 
-  // ── 3. Función corregida para agendar ───────────────────────────────────────
+  // ── 3. Función para agendar ───────────────────────────────────────
   const handleAgendar = async () => {
     try {
       const citaPayload = {
@@ -192,7 +195,7 @@ export default function BarberiaProfilePage() {
         barberoId: selectedBarbero.barberoId,
         fechaCita: selectedDate,
         horaCita: formatTimeParaBackend(selectedTime),
-        serviciosIds: selectedServices.map((s) => s.id), // 👈 Mandamos el array de IDs real
+        serviciosIds: selectedServices.map((s) => s.id), 
       };
 
       await api.post("/Citas/agendar", citaPayload);
@@ -241,7 +244,7 @@ export default function BarberiaProfilePage() {
   if (!sucursal) {
     return (
       <div className="min-h-screen flex items-center justify-center text-stone-500">
-        Barbería no encontrada
+        Barbería no encontrada o no disponible
       </div>
     );
   }
@@ -453,7 +456,6 @@ export default function BarberiaProfilePage() {
             </h3>
             <div className="grid gap-3">
               {servicios.map((servicio) => {
-                // 👈 Lógica para pintar de naranja si está en el arreglo
                 const isSelected = selectedServices.some((s) => s.id === servicio.id);
 
                 return (

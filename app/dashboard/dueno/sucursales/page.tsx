@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { 
   Building2, Plus, MapPin, Phone, Users, DollarSign, 
-  MoreVertical, Edit2, PowerOff, X, Save, AlertTriangle, Upload
+  MoreVertical, Edit2, PowerOff, X, Save, AlertTriangle, Upload,
+  Info, RefreshCw
 } from "lucide-react";
 import gsap from "gsap";
 import { api } from "@/lib/api"; 
@@ -81,7 +82,7 @@ export default function SucursalesPage() {
     const formData = new FormData(e.currentTarget);
     const data = {
       nombre: formData.get("nombre"),
-      descripcion: formData.get("descripcion"), // 👇 NUEVO CAMPO ATRAPADO
+      descripcion: formData.get("descripcion"), 
       direccion: formData.get("direccion"),
       telefono: formData.get("telefono"),
       nit: formData.get("nit"),
@@ -92,10 +93,10 @@ export default function SucursalesPage() {
     try {
       if (modalMode === "add") {
         await api.post('/Sucursales', data);
-        toast.success("¡Sucursal creada exitosamente!");
+        toast.success("¡Sucursal enviada para revisión del Administrador!");
       } else {
         await api.put(`/Sucursales/${selectedBranch.id}`, data);
-        toast.success("Sucursal actualizada correctamente");
+        toast.success("Sucursal actualizada y enviada a revisión nuevamente.");
       }
       setIsModalOpen(false);
       fetchSucursales(); 
@@ -130,7 +131,7 @@ export default function SucursalesPage() {
             Mis <span className="text-amber-500">Sucursales</span>
           </h1>
           <p className="text-stone-500 mt-1 text-xs md:text-sm">
-            Administra los locales de tu negocio.
+            Administra y envía a revisión los locales de tu negocio.
           </p>
         </div>
         
@@ -154,7 +155,7 @@ export default function SucursalesPage() {
           </div>
         ) : (
           sucursales.map((branch) => (
-            <div key={branch.id} className="branch-card opacity-0 bg-zinc-900/40 backdrop-blur-md border border-white/5 rounded-3xl overflow-visible hover:border-amber-500/30 transition-all flex flex-col sm:flex-row relative group">
+            <div key={branch.id} className={`branch-card opacity-0 bg-zinc-900/40 backdrop-blur-md border rounded-3xl overflow-visible transition-all flex flex-col sm:flex-row relative group ${branch.estadoAprobacion === "Rechazada" ? "border-red-500/30" : "border-white/5 hover:border-amber-500/30"}`}>
               
               <div className="sm:w-2/5 h-48 sm:h-auto relative bg-zinc-800 rounded-t-3xl sm:rounded-l-3xl sm:rounded-tr-none overflow-hidden shrink-0">
                 <div className="absolute inset-0 flex items-center justify-center text-stone-600">
@@ -164,10 +165,24 @@ export default function SucursalesPage() {
                   className="absolute inset-0 bg-cover bg-center brightness-[0.6] group-hover:brightness-[0.8] transition-all duration-500"
                   style={{ backgroundImage: `url(${branch.coverUrl || '/images/barbershop-interior-1.jpg'})` }}
                 />
-                <div className="absolute top-4 left-4">
-                  <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md bg-zinc-950/80 border backdrop-blur-md ${branch.estado === "Operativa" ? "text-emerald-500 border-emerald-500/20" : "text-amber-500 border-amber-500/20"}`}>
-                    {branch.estado}
-                  </span>
+                
+                {/* 🏷️ ETIQUETAS DE APROBACIÓN */}
+                <div className="absolute top-4 left-4 flex flex-col gap-2">
+                  {branch.estadoAprobacion === "Pendiente" && (
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md bg-amber-500 text-zinc-950 shadow-lg flex items-center gap-1">
+                      <RefreshCw size={12} className="animate-spin" /> En Revisión
+                    </span>
+                  )}
+                  {branch.estadoAprobacion === "Rechazada" && (
+                    <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md bg-red-500 text-white shadow-lg flex items-center gap-1">
+                      <AlertTriangle size={12} /> Rechazada
+                    </span>
+                  )}
+                  {branch.estadoAprobacion === "Aprobada" && (
+                    <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md bg-zinc-950/80 border backdrop-blur-md ${branch.estado === "Operativa" ? "text-emerald-500 border-emerald-500/20" : "text-amber-500 border-amber-500/20"}`}>
+                      {branch.estado}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -199,14 +214,14 @@ export default function SucursalesPage() {
                               onClick={(e) => { e.stopPropagation(); handleOpenEdit(branch); }}
                               className="w-full text-left px-4 py-2 text-sm text-stone-300 hover:bg-zinc-700 flex items-center gap-2 transition-colors"
                             >
-                              <Edit2 size={14} /> Editar Detalles
+                              <Edit2 size={14} /> Editar / Corregir
                             </button>
                             <div className="h-px bg-white/10 my-1" />
                             <button 
                               onClick={(e) => { e.stopPropagation(); handleOpenDelete(branch); }}
                               className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
                             >
-                              <PowerOff size={14} /> Cerrar Local
+                              <PowerOff size={14} /> Eliminar Local
                             </button>
                           </div>
                         </>
@@ -226,20 +241,31 @@ export default function SucursalesPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
-                  <div className="bg-zinc-950/50 p-3 rounded-xl border border-white/5">
-                    <p className="text-[10px] text-stone-500 uppercase tracking-widest flex items-center gap-1 mb-1">
-                      <Users size={10} /> Personal
-                    </p>
-                    <p className="text-lg font-bold text-stone-200">{branch.staffCount}</p>
+                {/* 🚨 MOSTRAR EL FEEDBACK DEL SUPERADMIN SI ESTÁ RECHAZADA */}
+                {branch.estadoAprobacion === "Rechazada" && branch.mensajeRechazo ? (
+                  <div className="mt-4 bg-red-500/10 border border-red-500/20 p-3 rounded-xl flex gap-3 items-start">
+                    <Info size={16} className="text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mb-1">Motivo de Rechazo:</p>
+                      <p className="text-xs text-stone-300">{branch.mensajeRechazo}</p>
+                    </div>
                   </div>
-                  <div className="bg-zinc-950/50 p-3 rounded-xl border border-white/5">
-                    <p className="text-[10px] text-stone-500 uppercase tracking-widest flex items-center gap-1 mb-1">
-                      <DollarSign size={10} /> Ingresos
-                    </p>
-                    <p className="text-lg font-bold text-emerald-500">{branch.revenue}</p>
+                ) : (
+                  <div className="mt-6 pt-4 border-t border-white/5 grid grid-cols-2 gap-4">
+                    <div className="bg-zinc-950/50 p-3 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-stone-500 uppercase tracking-widest flex items-center gap-1 mb-1">
+                        <Users size={10} /> Personal
+                      </p>
+                      <p className="text-lg font-bold text-stone-200">{branch.staffCount}</p>
+                    </div>
+                    <div className="bg-zinc-950/50 p-3 rounded-xl border border-white/5">
+                      <p className="text-[10px] text-stone-500 uppercase tracking-widest flex items-center gap-1 mb-1">
+                        <DollarSign size={10} /> Ingresos
+                      </p>
+                      <p className="text-lg font-bold text-emerald-500">{branch.revenue}</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           ))
@@ -263,7 +289,7 @@ export default function SucursalesPage() {
                 {modalMode === "add" ? "Nueva Sucursal" : "Editar Detalles"}
               </h2>
               <p className="text-stone-500 text-sm mt-1">
-                {modalMode === "add" ? "Ingresa la información del nuevo local." : "Actualiza la información de tu sede."}
+                {modalMode === "add" ? "Ingresa la información para revisión." : "Al guardar, la sucursal volverá a revisión."}
               </p>
             </div>
 
@@ -292,7 +318,6 @@ export default function SucursalesPage() {
                 />
               </div>
 
-              {/* 👇 NUEVO CAMPO: DESCRIPCIÓN */}
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-stone-500 uppercase tracking-widest ml-1">Acerca de nosotros (Opcional)</label>
                 <textarea 
@@ -364,7 +389,7 @@ export default function SucursalesPage() {
                   className="bg-amber-500 hover:bg-amber-600 text-zinc-950 font-bold px-6 py-2.5 rounded-xl transition-all flex items-center gap-2 text-sm shadow-lg"
                 >
                   <Save size={16} />
-                  Guardar
+                  Guardar Cambios
                 </button>
               </div>
             </form>

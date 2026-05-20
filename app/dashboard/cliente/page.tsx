@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Image from "next/image";
-import { Search, MapPin, Star, Clock, ArrowRight, Scissors, CalendarPlus, Phone, User } from "lucide-react";
+import { Search, MapPin, Star, Clock, ArrowRight, Scissors, CalendarPlus, Phone, User, Loader2 } from "lucide-react";
 import gsap from "gsap";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api"; 
@@ -12,13 +12,18 @@ export default function DashboardClientePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Estados
+  // Estados Principales
   const [nombreCliente, setNombreCliente] = useState<string>("Cliente");
   const [barberias, setBarberias] = useState<any[]>([]);
-  const [barberos, setBarberos] = useState<any[]>([]); // 👈 NUEVO ESTADO PARA BARBEROS
+  const [barberos, setBarberos] = useState<any[]>([]); 
   const [proximaCita, setProximaCita] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
+  // 🚀 ESTADOS PARA LA PAGINACIÓN 🚀
+  const [pagina, setPagina] = useState(1);
+  const [hayMasPaginas, setHayMasPaginas] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState("");
 
   // ── Helper para obtener la fecha local correcta ──
@@ -43,14 +48,18 @@ export default function DashboardClientePage() {
       const nombre = localStorage.getItem("user_name") || "Cliente";
       setNombreCliente(nombre.split(" ")[0]); 
 
-      // 1. Traer Barberías
-      const resBarberias = await api.get('/Sucursales/todas');
-      setBarberias(resBarberias.data);
+      // 1. Traer Barberías (PÁGINA 1, LÍMITE 6 para que se vea bien en grid)
+      const resBarberias = await api.get('/Sucursales/todas?pagina=1&limite=6');
+      
+      setBarberias(resBarberias.data.data || []);
+      // Evaluamos si el backend dice que hay más páginas
+      setHayMasPaginas(resBarberias.data.paginaActual < resBarberias.data.totalPaginas);
+      setPagina(1);
 
-      // 2. Traer Barberos (El nuevo endpoint que creaste en C#)
+      // 2. Traer Barberos
       try {
         const resBarberos = await api.get('/Staff/todos');
-        setBarberos(resBarberos.data);
+        setBarberos(resBarberos.data || []);
       } catch (err) {
         console.error("No se pudieron cargar los barberos", err);
       }
@@ -59,7 +68,10 @@ export default function DashboardClientePage() {
       try {
         const resCitas = await api.get('/Citas/cliente/mis-citas');
         const todayStr = getTodayLocalString();
-        const citasFuturas = resCitas.data
+        
+        const arregloCitas = Array.isArray(resCitas.data) ? resCitas.data : (resCitas.data.data || []);
+
+        const citasFuturas = arregloCitas
           .filter((c: any) => 
             (c.estado === "Pendiente" || c.estado === "Aceptada" || c.estado === "En Curso") &&
             c.fechaCita.split('T')[0] >= todayStr
@@ -101,27 +113,47 @@ export default function DashboardClientePage() {
     }
   }, [isLoading]);
 
+  // 🚀 FUNCIÓN PARA CARGAR MÁS PÁGINAS 🚀
+  const cargarMasBarberias = async () => {
+    if (!hayMasPaginas || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const siguientePagina = pagina + 1;
+      const res = await api.get(`/Sucursales/todas?pagina=${siguientePagina}&limite=6`);
+      
+      const nuevasBarberias = res.data.data || [];
+      
+      // Acumulamos las nuevas barberías a las que ya teníamos
+      setBarberias(prev => [...prev, ...nuevasBarberias]);
+      setPagina(siguientePagina);
+      setHayMasPaginas(res.data.paginaActual < res.data.totalPaginas);
+
+    } catch (error) {
+      toast.error("Error al cargar más barberías.");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+
   const getMesCorto = (fechaIso: string) => {
     return new Date(fechaIso).toLocaleDateString('es-CO', { month: 'short' }).substring(0, 3);
   };
   const getDia = (fechaIso: string) => {
     return new Date(fechaIso).getDate().toString().padStart(2, '0');
   };
-const formatHora = (horaFull: string) => {
+  const formatHora = (horaFull: string) => {
     if (!horaFull) return "--:--";
-    
-    // Asumimos que horaFull viene como "HH:mm:ss" (ej: "15:30:00")
     const [hours, minutes] = horaFull.split(':');
     let h = parseInt(hours, 10);
     const ampm = h >= 12 ? 'PM' : 'AM';
-    
     h = h % 12;
-    h = h ? h : 12; // Si es 0, lo pasamos a 12
-    
+    h = h ? h : 12; 
     return `${h.toString().padStart(2, '0')}:${minutes} ${ampm}`;
   };
 
-  // 👈 FILTROS EN TIEMPO REAL
+  // FILTROS EN TIEMPO REAL
   const searchLower = searchTerm.toLowerCase();
   
   const barberiasFiltradas = barberias.filter(b => 
@@ -222,7 +254,7 @@ const formatHora = (horaFull: string) => {
         </div>
       )}
 
-      {/* 👈 NUEVA SECCIÓN: BARBEROS (Solo aparece si el usuario busca algo o si quieres dejarla fija) */}
+      {/* SECCIÓN: BARBEROS */}
       {(searchTerm && barberosFiltrados.length > 0) && (
         <div className="anim-item pt-4">
           <h2 className="text-xl font-serif font-bold text-stone-100 mb-6 flex items-center gap-2">
@@ -234,7 +266,6 @@ const formatHora = (horaFull: string) => {
               onClick={() => router.push(`/dashboard/cliente/barberia/${barbero.sucursalId}`)}
               className="bg-zinc-900/40 backdrop-blur-md border border-white/5 rounded-2xl p-5 hover:border-amber-500/30 transition-all group cursor-pointer flex items-center gap-4">
                 
-                {/* Foto circular o Iniciales del barbero */}
                 <div className="relative w-16 h-16 rounded-full overflow-hidden shrink-0 border-2 border-amber-500/20 group-hover:border-amber-500/50 transition-colors flex items-center justify-center bg-zinc-800">
                   {barbero.fotoUrl ? (
                     <Image 
@@ -250,7 +281,6 @@ const formatHora = (horaFull: string) => {
                   )}
                 </div>
                 
-                {/* Info del barbero */}
                 <div className="flex-1 overflow-hidden">
                   <h3 className="text-lg font-bold text-stone-100 truncate">{barbero.nombre}</h3>
                   <div className="flex items-center gap-1 text-stone-500 text-xs mt-1 truncate">
@@ -268,25 +298,22 @@ const formatHora = (horaFull: string) => {
         </div>
       )}
 
-      {/* Sección Explorar Barberías */}
+      {/* SECCIÓN EXPLORAR BARBERÍAS */}
       <div className="anim-item pt-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-serif font-bold text-stone-100">
             {searchTerm ? "Barberías Encontradas" : "Explorar Barberías o Barberos"}
           </h2>
+          
+          {/* Botón Ver todas conectado a Cargar Más si hay páginas */}
           {!searchTerm && (
             <button 
-              onClick={() => {
-                const input = document.getElementById('buscador-principal');
-                if (!input) return;
-                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                input.addEventListener('scrollend', () => input.focus(), { once: true });
-                // Fallback por si el navegador no soporta scrollend
-                setTimeout(() => input.focus(), 600);
-              }}
-              className="text-amber-500 hover:text-amber-400 text-sm font-medium flex items-center gap-1 transition-colors"
+              onClick={() => hayMasPaginas ? cargarMasBarberias() : null}
+              className={`text-sm font-medium flex items-center gap-1 transition-colors ${hayMasPaginas ? 'text-amber-500 hover:text-amber-400' : 'text-stone-600 cursor-not-allowed'}`}
+              disabled={!hayMasPaginas || isLoadingMore}
             >
-              Ver todas <ArrowRight size={16} />
+              {isLoadingMore ? <Loader2 size={16} className="animate-spin" /> : "Ver más"} 
+              <ArrowRight size={16} />
             </button>
           )}
         </div>
@@ -296,45 +323,65 @@ const formatHora = (horaFull: string) => {
             <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : barberiasFiltradas.length === 0 ? (
-          // Solo mostramos este mensaje si tampoco encontró barberos
           barberosFiltrados.length === 0 && (
             <div className="text-center py-20 text-stone-500 bg-zinc-900/40 rounded-3xl border border-white/5 backdrop-blur-md">
               <p>{searchTerm ? "No encontramos nada con esa búsqueda." : "No hay barberías registradas en este momento."}</p>
             </div>
           )
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {barberiasFiltradas.map((barberia) => (
-              <div key={barberia.id} 
-              onClick={() => router.push(`/dashboard/cliente/barberia/${barberia.id}`)}
-              className="bg-zinc-900/40 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden hover:border-amber-500/30 transition-all group cursor-pointer flex flex-col h-full">
-                <div className="relative h-48 overflow-hidden shrink-0">
-                  <Image 
-                    src={barberia.imagenUrl || "/images/barbershop-hero.jpg"} 
-                    alt={barberia.nombre} 
-                    fill 
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
-                  <div className="absolute top-4 right-4 bg-zinc-950/80 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 border border-white/10">
-                    <Star size={12} className="text-amber-500 fill-amber-500" />
-                  <span className="text-xs font-bold text-stone-200">
-                    {barberia.rating ? Number(barberia.rating).toFixed(1) : "5.0"}
-                  </span>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {barberiasFiltradas.map((barberia) => (
+                <div key={barberia.id} 
+                onClick={() => router.push(`/dashboard/cliente/barberia/${barberia.id}`)}
+                className="bg-zinc-900/40 backdrop-blur-md border border-white/5 rounded-2xl overflow-hidden hover:border-amber-500/30 transition-all group cursor-pointer flex flex-col h-full">
+                  <div className="relative h-48 overflow-hidden shrink-0">
+                    <Image 
+                      src={barberia.imagenUrl || "/images/barbershop-hero.jpg"} 
+                      alt={barberia.nombre} 
+                      fill 
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
+                    <div className="absolute top-4 right-4 bg-zinc-950/80 backdrop-blur-md px-2 py-1 rounded-lg flex items-center gap-1 border border-white/10">
+                      <Star size={12} className="text-amber-500 fill-amber-500" />
+                    <span className="text-xs font-bold text-stone-200">
+                      {barberia.rating ? Number(barberia.rating).toFixed(1) : "5.0"}
+                    </span>
+                    </div>
                   </div>
-                </div>
-                <div className="p-5 flex-1 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-stone-100 line-clamp-1">{barberia.nombre}</h3>
-                    <div className="flex items-start gap-1 text-stone-500 text-xs mt-3">
-                      <MapPin size={14} className="shrink-0 mt-0.5" />
-                      <span className="line-clamp-2">{barberia.direccion || "Cartagena, Colombia"}</span>
+                  <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-stone-100 line-clamp-1">{barberia.nombre}</h3>
+                      <div className="flex items-start gap-1 text-stone-500 text-xs mt-3">
+                        <MapPin size={14} className="shrink-0 mt-0.5" />
+                        <span className="line-clamp-2">{barberia.direccion || "Cartagena, Colombia"}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
+              ))}
+            </div>
+
+            {/* 👇 BOTÓN DE CARGAR MÁS AL FINAL DEL GRID 👇 */}
+            {hayMasPaginas && !searchTerm && (
+              <div className="flex justify-center mt-10">
+                <button
+                  onClick={cargarMasBarberias}
+                  disabled={isLoadingMore}
+                  className="bg-zinc-900/80 hover:bg-amber-600 text-amber-500 hover:text-zinc-950 border border-amber-500/30 hover:border-amber-500 px-8 py-3 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-3 text-sm shadow-lg"
+                >
+                  {isLoadingMore ? (
+                    <>
+                      <Loader2 size={18} className="animate-spin" /> Cargando...
+                    </>
+                  ) : (
+                    "Cargar más barberías"
+                  )}
+                </button>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </div>
     </div>

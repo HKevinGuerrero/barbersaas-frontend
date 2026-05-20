@@ -27,8 +27,11 @@ export default function GananciasBarberoPage() {
   const fetchGanancias = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await api.get('/Citas/mis-citas');
-      const misCompletadas = res.data.filter((c: any) => c.estado === "Completada");
+      // 🚀 LÍMITE ALTO Y EXTRACCIÓN SEGURA PARA PAGINACIÓN
+      const res = await api.get('/Citas/mis-citas?limite=500');
+      const arregloCitas = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+
+      const misCompletadas = arregloCitas.filter((c: any) => c.estado === "Completada");
       setCitasCompletadas(misCompletadas);
     } catch (error) {
       console.error("Error al cargar ganancias:", error);

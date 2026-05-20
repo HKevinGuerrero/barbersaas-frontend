@@ -4,7 +4,8 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { Sidebar } from "@/components/dashboard/sidebar"; 
 import { Menu, X } from "lucide-react";
 
-type Role = "dueno" | "barbero" | "cliente";
+// 👇 1. AGREGAMOS EL ROL "superadmin" AQUÍ
+type Role = "superadmin" | "dueno" | "barbero" | "cliente";
 const RoleContext = createContext<Role>("cliente");
 
 export function useRole() {
@@ -16,25 +17,20 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Inicializamos con un valor seguro, pero lo actualizaremos en el useEffect
   const [role, setRole] = useState<Role>("cliente"); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-useEffect(() => {
-    // 🛡️ ESTANDARIZACIÓN: Leemos la llave oficial "role"
-    // (Añadimos "user_role" como respaldo solo por si quedó guardado de antes)
+  useEffect(() => {
     const savedRole = (localStorage.getItem("role") || localStorage.getItem("user_role")) as Role;
     
     if (savedRole) {
-      // Nos aseguramos de guardarlo en minúsculas para que coincida exactamente
       setRole(savedRole.toLowerCase() as Role);
     }
     
     setIsLoading(false);
   }, []);
 
-  // Evitamos saltos visuales mientras cargamos el rol del storage
   if (isLoading) {
     return <div className="h-screen bg-zinc-950 flex items-center justify-center text-amber-500">Cargando...</div>;
   }
@@ -46,11 +42,11 @@ useEffect(() => {
         {/* --- TOPBAR PARA CELULARES --- */}
         <div className="md:hidden absolute top-0 left-0 right-0 h-16 bg-zinc-950/90 backdrop-blur-md border-b border-white/5 z-30 flex items-center justify-between px-4">
           <h1 className="font-serif text-xl font-bold text-stone-200">
-            Barber<span className="text-amber-500">SaaS</span>
+            Barber<span className={role === "superadmin" ? "text-red-500" : "text-amber-500"}>SaaS</span>
           </h1>
           <button 
             onClick={() => setIsMobileMenuOpen(true)}
-            className="p-2 text-stone-400 hover:text-amber-500 transition-colors bg-zinc-900 rounded-lg border border-white/5"
+            className="p-2 text-stone-400 hover:text-white transition-colors bg-zinc-900 rounded-lg border border-white/5"
           >
             <Menu size={20} />
           </button>
@@ -69,10 +65,10 @@ useEffect(() => {
               onClick={() => setIsMobileMenuOpen(false)}
             />
             
-            <div className="relative w-64 max-w-[80%] h-full bg-zinc-950 shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
+            <div className="relative w-64 max-w-[80%] h-full bg-zinc-950 shadow-2xl flex flex-col animate-in slide-in-from-left duration-300 border-r border-white/5">
               <div className="px-6 pt-6 pb-2 flex items-center justify-between">
                 <h1 className="font-serif text-2xl font-bold text-stone-200">
-                  Barber<span className="text-amber-500">SaaS</span>
+                  Barber<span className={role === "superadmin" ? "text-red-500" : "text-amber-500"}>SaaS</span>
                 </h1>
                 <button 
                   onClick={() => setIsMobileMenuOpen(false)}

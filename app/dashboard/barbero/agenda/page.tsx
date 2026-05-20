@@ -26,17 +26,19 @@ export default function AgendaCompletaBarberoPage() {
   const fetchAppointments = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 🔒 AQUÍ SE ARREGLÓ LA FUGA: Se usa el endpoint seguro que lee el JWT
-      const res = await api.get('/Citas/mis-citas');
+      // 🔒 Se pide con un límite alto para tener toda la agenda
+      const res = await api.get('/Citas/mis-citas?limite=500');
       
-      // Extraemos la fecha en tu zona horaria local
       const today = new Date();
       const year = today.getFullYear();
       const month = String(today.getMonth() + 1).padStart(2, '0');
       const day = String(today.getDate()).padStart(2, '0');
       const hoyStr = `${year}-${month}-${day}`; 
       
-      const citasHoy = res.data
+      // 🚀 EXTRACCIÓN SEGURA DEL ARREGLO PAGINADO
+      const arregloCitas = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+
+      const citasHoy = arregloCitas
         .filter((c: any) => c.fechaCita.startsWith(hoyStr))
         .sort((a: any, b: any) => a.horaCita.localeCompare(b.horaCita));
         
